@@ -1,0 +1,101 @@
+# My Pseudocode for the Crypto Project
+
+// --- The main constants ---
+// these are like the secret keys for our cipher.
+the_alphabet = "abcdefghijklmnopqrstuvwxyz"
+substitution_table = "hilwmkbdpcvazusjgrnqyxfote" // the key for the monoalphabetic part.
+
+// --- Helper Functions ---
+// this is a simple function to clean up the text.
+function clean_the_text(raw_text):
+    // it makes everything lowercase and removes anything that isnt a letter.
+    return raw_text converted to lowercase, with only letters 'a' through 'z' kept.
+
+// this function handles the caesar cipher shifting.
+function shift_letters(the_text, shift_amount, direction):
+    // direction is either 'forward' for encrypt, or 'backward' for decrypt.
+    new_text = "" // this will hold the result.
+    for each character in the_text:
+        original_index = the index of the character in the_alphabet.
+        if direction is 'forward':
+            new_index = (original_index + shift_amount) mod 26
+        else: // must be 'backward'
+            new_index = (original_index - shift_amount + 26) mod 26 // the +26 is to avoid negative numbers
+        
+        new_text = new_text + the character at new_index in the_alphabet.
+    return new_text
+
+
+// --- The Main Logic ---
+
+// this is the main encryption logic function.
+function run_encryption(the_plaintext):
+    // step 1: we gotta clean the text first, no spaces or anything.
+    clean_text = clean_the_text(the_plaintext)
+
+    // step 2: now we do the padding if its needed.
+    // we keep adding x, y, z in a cycle until the length is a multiple of 9.
+    padded_text = a copy of clean_text
+    while length of padded_text is not a multiple of 9:
+        add the next character from "xyz" cycle to padded_text
+
+    // step 3: this is where the real work happens. we go through the text in chunks of 9.
+    final_ciphertext = "" // this will hold the final encrypted string.
+    for each 9-letter block in padded_text:
+        /* the block is split, first 3 letters for caesar, next 6 for substitution */
+        caesar_part = the first 3 letters of the block.
+        subst_part = the next 6 letters of the block.
+
+        // now we find the key for the caesar part.
+        // the key is the alphabet index of the *first letter* of the plaintext subst_part.
+        key_letter = the first letter of subst_part
+        shift_key = the index of key_letter in the_alphabet
+        
+        // now we can encrypt both parts of the block.
+        encrypted_caesar = shift_letters(caesar_part, shift_key, 'forward')
+        
+        // for the substitution part, we just look up each letter in the table.
+        encrypted_subst = ""
+        for each character in subst_part:
+            index = the index of the character in the_alphabet
+            encrypted_subst = encrypted_subst + the character at that index in substitution_table
+        
+        // now we stick them together and add to our final result.
+        final_ciphertext = final_ciphertext + encrypted_caesar + encrypted_subst
+    
+    return final_ciphertext
+
+
+// this is the decryption function. it has to reverse what the encryption did.
+function run_decryption(the_ciphertext):
+    final_plaintext = "" // this will hold our decrypted text.
+
+    // just like encryption, we process in chunks of 9.
+    for each 9-letter block in the_ciphertext:
+        encrypted_caesar_part = the first 3 letters of the block.
+        encrypted_subst_part = the next 6 letters of the block.
+
+        /* this is the tricky part. we have to decrypt the substitution part FIRST
+           because that's where the key for the caesar part is hidden.
+        */
+        decrypted_subst_part = ""
+        for each character in encrypted_subst_part:
+            index = the index of the character in substitution_table
+            decrypted_subst_part = decrypted_subst_part + the character at that index in the_alphabet
+
+        // ok, now that we have the decrypted substitution part, we can find the key.
+        key_letter = the first letter of decrypted_subst_part
+        shift_key = the index of key_letter in the_alphabet
+
+        // now we can finally decrypt the caesar part using the key we just found.
+        decrypted_caesar_part = shift_letters(encrypted_caesar_part, shift_key, 'backward')
+
+        // now we put the decrypted parts of the block back together.
+        final_plaintext = final_plaintext + decrypted_caesar_part + decrypted_subst_part
+
+    // step 4: the last thing to do is remove the 'x', 'y', 'z' padding from the end.
+    text_without_padding = a copy of final_plaintext
+    while text_without_padding ends with 'x' or 'y' or 'z':
+        remove the last character from text_without_padding
+
+    return text_without_padding
