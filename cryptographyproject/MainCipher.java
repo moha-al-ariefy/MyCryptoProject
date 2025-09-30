@@ -120,7 +120,7 @@ public class MainCipher {
             if (verbose) {
                 System.out.printf("%n  [Segment %d] block [%d..%d): \"%s\"%n", seg, i, i + 9, block);
                 System.out.printf("    A) Caesar 3 letters: \"%s\"%n", caesarPart);
-                System.out.printf("       Next plaintext letter for shift = '%c' → index %d%n", shiftChar, shiftKey);
+                System.out.printf("       Next plaintext letter for shift = '%c' -> index %d%n", shiftChar, shiftKey);
             }
 
             StringBuilder caesarOut = new StringBuilder();
@@ -130,7 +130,7 @@ public class MainCipher {
                 char c = theAlphabet.charAt(cIdx);
                 caesarOut.append(c);
                 if (verbose) {
-                    System.out.printf("         %c (%2d) + %2d ⇒ %c (%2d)%n", p, pIdx, shiftKey, c, cIdx);
+                    System.out.printf("        %c (%2d) + %2d => %c (%2d)%n", p, pIdx, shiftKey, c, cIdx);
                 }
             }
 
@@ -143,7 +143,7 @@ public class MainCipher {
                 char c = substTable.charAt(pIdx);
                 substOut.append(c);
                 if (verbose) {
-                    System.out.printf("         %c → %c (monoalphabetic)%n", p, c);
+                    System.out.printf("        %c -> %c (monoalphabetic)%n", p, c);
                 }
             }
 
@@ -212,7 +212,7 @@ public class MainCipher {
                 char p = theAlphabet.charAt(encIdx);
                 substPartDecrypted.append(p);
                 if (verbose) {
-                    System.out.printf("         %c → %c (inverse monoalphabetic)%n", c, p);
+                    System.out.printf("        %c -> %c (inverse monoalphabetic)%n", c, p);
                 }
             }
 
@@ -221,18 +221,17 @@ public class MainCipher {
 
             if (verbose) {
                 System.out.printf("    A) Caesar 3 letters (cipher): \"%s\"%n", ciphCaesar);
-                System.out.printf("       Derived next-plaintext letter = '%c' → shift %d%n", keyChar, shiftKey);
+                System.out.printf("       Derived next-plaintext letter = '%c' -> shift %d%n", keyChar, shiftKey);
             }
 
             StringBuilder caesarPartDecrypted = new StringBuilder();
             for (char c : ciphCaesar.toCharArray()) {
                 int cIdx = theAlphabet.indexOf(c);
-                int pIdx = (cIdx - shiftKey) % 26;
-                if (pIdx < 0) pIdx += 26;
+                int pIdx = (cIdx - shiftKey + 26) % 26; // The +26 handles negative results from subtraction
                 char p = theAlphabet.charAt(pIdx);
                 caesarPartDecrypted.append(p);
                 if (verbose) {
-                    System.out.printf("         %c (%2d) - %2d ⇒ %c (%2d)%n", c, cIdx, shiftKey, p, pIdx);
+                    System.out.printf("        %c (%2d) - %2d => %c (%2d)%n", c, cIdx, shiftKey, p, pIdx);
                 }
             }
 
@@ -250,10 +249,28 @@ public class MainCipher {
             System.out.println("\n[3] Remove trailing padding \"x|y|z\" if present:");
             System.out.println("    before: " + finalDecrypted);
         }
+        
+        // BUG FIX: The old while loop was too greedy and deleted real message characters.
+        // This new logic is much safer. It looks for the specific padding patterns
+        // in reverse order of length to avoid mistakes.
+        String[] possiblePaddings = {
+            "xyzxyzxy", // 8
+            "xyzxyzx",  // 7
+            "xyzxyz",   // 6
+            "xyzxy",    // 5
+            "xyzx",     // 4
+            "xyz",      // 3
+            "xy",       // 2
+            "x"         // 1
+        };
 
-        while(finalDecrypted.endsWith("z") || finalDecrypted.endsWith("y") || finalDecrypted.endsWith("x")) {
-            finalDecrypted = finalDecrypted.substring(0, finalDecrypted.length() - 1);
+        for (String pad : possiblePaddings) {
+            if (finalDecrypted.endsWith(pad)) {
+                finalDecrypted = finalDecrypted.substring(0, finalDecrypted.length() - pad.length());
+                break; // Found the padding and removed it, so we stop.
+            }
         }
+
 
         if (verbose) {
             System.out.println("    after : " + finalDecrypted);
@@ -298,3 +315,4 @@ public class MainCipher {
         }
     }
 }
+
