@@ -48,6 +48,23 @@ public class AttackMain {
             26 // show all 26 letters
         );
         
+        // --- NEW: Diagram Analysis (Overall) ---
+        Map<String, Integer> diagramFreqs = analyzer.getDiagramFrequencies();
+         CryptoAnalyzer.printFrequencyMap(
+             "--- [Overall] Top 20 Diagram Frequencies (All text) ---",
+             diagramFreqs,
+             20 // show top 20
+         );
+
+        // --- NEW: Trigram Analysis (Overall) ---
+        Map<String, Integer> trigramFreqs = analyzer.getTrigramFrequencies();
+        CryptoAnalyzer.printFrequencyMap(
+            "--- [Overall] Top 20 Trigram Frequencies (All text) ---",
+            trigramFreqs,
+            20 // show top 20
+        );
+
+
         System.out.println("\nPress Enter to continue to the *targeted* attack analysis...");
         userInputReader.nextLine();
 
@@ -71,6 +88,22 @@ public class AttackMain {
         );
         System.out.println("==> ANALYSIS: This graph is SPIKY, proving it's monoalphabetic.");
         System.out.println("This is the weak point. We will now attack this part.");
+        
+        // --- NEW: S6 Diagram Analysis ---
+        Map<String, Integer> s6DiagramFreqs = analyzer.getSegmentedDiagramFrequencies(9, 3, 6);
+        CryptoAnalyzer.printFrequencyMap(
+            "--- [ATTACK] Top 20 Diagram Frequencies (S6 Segments Only) ---",
+            s6DiagramFreqs,
+            20 // show top 20
+        );
+
+        // --- NEW: S6 Trigram Analysis ---
+        Map<String, Integer> s6TrigramFreqs = analyzer.getSegmentedTrigramFrequencies(9, 3, 6);
+        CryptoAnalyzer.printFrequencyMap(
+            "--- [ATTACK] Top 20 Trigram Frequencies (S6 Segments Only) ---",
+            s6TrigramFreqs,
+            20 // show top 20
+        );
 
         
         // === Step 2: Begin Interactive Cracking Loop ===
@@ -94,7 +127,7 @@ public class AttackMain {
             System.out.println("  (g)uess    -> (e.g., 'g h e' means 'guess Cipher H is Plain E')");
             System.out.println("  (u)ndo     -> (e.g., 'u h' means 'undo guess for Cipher H')");
             System.out.println("  (r)eshow   -> (reshow the S6 frequency graph)");
-            System.out.println("  (v)alidate -> (check partial text, 'v all' to show all)"); // <-- UPDATED
+            System.out.println("  (v)alidate -> (check partial text, 'v all' to show all)");
             System.out.println("  (a)ttempt  -> (run full decryption with current guesses)");
             System.out.println("  (q)uit     -> (exit the program)");
             System.out.print("Your command: ");
@@ -103,6 +136,13 @@ public class AttackMain {
             
             if (commandLine.length() == 0) {
                 continue; // user just pressed enter, loop again.
+            }
+
+            // this logic is for the 'v all' command
+            boolean showAll = false;
+            if (commandLine.equals("v all")) {
+                commandLine = "v"; // force command to 'v'
+                showAll = true; // set our flag
             }
 
             char command = commandLine.charAt(0);
@@ -137,20 +177,25 @@ public class AttackMain {
                         substPartFreqs, // use the saved map
                         26 // show all 26
                     );
+                    // also reshow the new S6 diagram/trigram maps
+                    CryptoAnalyzer.printFrequencyMap(
+                        "--- [ATTACK] Top 20 Diagram Frequencies (S6 Segments Only) ---",
+                        s6DiagramFreqs,
+                        20 // show top 20
+                    );
+                    CryptoAnalyzer.printFrequencyMap(
+                        "--- [ATTACK] Top 20 Trigram Frequencies (S6 Segments Only) ---",
+                        s6TrigramFreqs,
+                        20 // show top 20
+                    );
                     break;
 
-                case 'v': // Validate (UPDATED)
+                case 'v': // Validate (NEW FOR PHASE 3)
                     System.out.println("\n--- Validating Partial S6 Text ---");
-                    
-                    // Check if the user typed "v all"
-                    boolean showAll = false;
-                    if (parts.length == 2 && parts[1].equals("all")) {
-                        showAll = true;
-                    }
-
+                    // we get the partial text, then run the new validation function on it.
                     String s6Text = analyzer.getDecryptedTextWithContext();
-                    // Call the new overloaded method
-                    String s6Validation = analyzer.validateText(s6Text, showAll); 
+                    // we pass the showAll flag here!
+                    String s6Validation = analyzer.validateText(s6Text, showAll);
                     System.out.println(s6Validation);
                     break;
                 
@@ -163,8 +208,9 @@ public class AttackMain {
                     
                     // --- NEW FOR PHASE 3 ---
                     System.out.println("\n--- Dictionary Validation ---");
-                    // This will call the default validateText(text, false) to show top 10
-                    String validationResult = analyzer.validateText(fullAttempt);
+                    // This will score the text based on our dictionary.txt
+                    // we pass the showAll flag here too!
+                    String validationResult = analyzer.validateText(fullAttempt, showAll);
                     System.out.println(validationResult);
                     // --- END OF ATTEMPT ---
                     break;
