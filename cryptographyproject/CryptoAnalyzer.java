@@ -3,14 +3,19 @@ package cryptographyproject;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet; // Import HashSet
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set; // Import Set
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 // this is the "brain" class. it holds the text and has all the
 // analysis methods that you wrote in your Phase2Main.
-// I've added new functions for Phase 2 for interactive guessing.
+// I've UPDATED the validateText function to be much smarter.
 public class CryptoAnalyzer {
 
     // we need the alphabet to know what letters to count, same as in MainCipher.
@@ -25,12 +30,19 @@ public class CryptoAnalyzer {
     // Key = cipher char, Value = plain char.
     private Map<Character, Character> substitutionGuessMap;
 
+    // --- NEW FOR PHASE 3: The Dictionary ---
+    // this will hold all the words from dictionary.txt for fast checking.
+    private Set<String> dictionary;
+    private boolean dictionaryLoaded;
+
+
     /**
      * The constructor. When we create an analyzer, it automatically
      * reads the file and cleans the text, getting it ready for analysis.
      * @param filename The name of the file to read (e.g., "cipher.txt")
      */
     public CryptoAnalyzer(String filename) {
+        // load the ciphertext
         try {
             this.rawCipherText = new String(Files.readAllBytes(Paths.get(filename)));
             this.cleanCipherText = this.rawCipherText.toLowerCase().replaceAll("[^a-z]", "");
@@ -42,21 +54,51 @@ public class CryptoAnalyzer {
             this.fileLoaded = false;
         }
         
-        // we also need to initialize our guess map.
+        // initialize our guess map.
         this.substitutionGuessMap = new HashMap<>();
         for (char c : theAlphabet.toCharArray()) {
             substitutionGuessMap.put(c, '?'); // '?' means 'not guessed yet'
         }
+
+        // --- NEW FOR PHASE 3 ---
+        // also initialize and load the dictionary
+        this.dictionary = new HashSet<>();
+        this.dictionaryLoaded = loadDictionary("dictionary.txt");
     }
+
+    /**
+     * This is a helper function to load all the words from dictionary.txt
+     * into our Set for fast lookups.
+     * @param dictFilename the name of the dictionary file
+     * @return true if loading succeeded, false otherwise
+     */
+    private boolean loadDictionary(String dictFilename) {
+        // this is a helper to load all the words from dictionary.txt
+        try (Stream<String> lines = Files.lines(Paths.get(dictFilename))) {
+            lines.map(String::toLowerCase) // make lowercase
+                 .map(String::trim)        // remove whitespace
+                 .map(line -> line.replaceAll("[^a-z]", "")) // remove non-letters
+                 // Only keep words 4+ letters long
+                 .filter(line -> line.length() > 0) // <-- REVERTED: Was >= 4, now > 0
+                 .forEach(this.dictionary::add); // add each word to our Set
+            return true;
+        } catch (IOException e) {
+            // This is not a critical error, so we just report it.
+            // The main program will warn the user.
+            return false; // file not found
+        }
+    }
+
 
     // --- Getters to access the text ---
     public String getRawText() { return this.rawCipherText; }
     public String getCleanText() { return this.cleanCipherText; }
     public boolean isFileLoaded() { return this.fileLoaded; }
-
+    public boolean isDictionaryLoaded() { return this.dictionaryLoaded; }
+    public int getDictionarySize() { return this.dictionary.size(); }
     
     // =========================================================================
-    // === NEW Interactive Methods for Phase 2
+    // === Interactive Methods (Phase 2)
     // =========================================================================
 
     /**
@@ -206,6 +248,95 @@ public class CryptoAnalyzer {
 
 
     // =========================================================================
+    // === NEW Validation Method for Phase 3 (UPDATED)
+    // =========================================================================
+
+    /**
+     * Overloaded helper method. Defaults to showing only the top 10 results.
+     * @param decryptedText The text to score (e.g., "ifwehadan ythingcon")
+     * @return A string summarizing the score (e.g., "==> Word Score: 50. Found [confidential, anything]")
+     */
+    public String validateText(String decryptedText) {
+        // Default to NOT showing all words
+        return validateText(decryptedText, false);
+    }
+    
+    /**
+     * This is the "Word Validation" function from the rubric.
+     * It checks a string of text against the dictionary.
+     * @param decryptedText The text to score (e.g., "___e?a?an ___in?con")
+     * @param showAll If true, shows all found words. If false, shows top 10.
+     * @return A string summarizing the score (e.g., "==> Word Score: 50. Found [had, confidential]")
+     */
+    public String validateText(String decryptedText, boolean showAll) {
+        if (!this.dictionaryLoaded) {
+            return "==> Dictionary not loaded. Skipping validation.";
+        }
+
+        // Use a Set to automatically handle duplicates
+        Set<String> foundWordsSet = new HashSet<>();
+        int totalScore = 0; // we will score based on the length of words found
+
+        // --- Strategy 1: Check for words *inside* partial fragments ---
+        // This checks if "had" is inside "ehadan".
+        String[] blocks = decryptedText.split(" "); // ["___e?a?an", "___in?con", ...]
+        
+        for (String block : blocks) {
+            if (block.length() <= 3) continue; // Skip empty/invalid blocks
+
+            // Get just the S6 part, e.g., "e?a?an" or "ential"
+            String s6Fragment = block.substring(3);
+            String cleanFragment = s6Fragment.replaceAll("\\?", ""); // "eaan" or "ential"
+            
+            if (cleanFragment.length() < 3) continue; // Not enough letters to find a word
+
+            // Check if any dictionary word is a SUBSTRING of the clean fragment
+            for (String word : this.dictionary) {
+                if (cleanFragment.contains(word)) {
+                    // Example: "ehadan" (from e?a?an) contains "had"
+                    if (foundWordsSet.add(word)) { // .add() returns true if the word was new
+                        totalScore += word.length() * 2; // Score these partials higher
+                    }
+                }
+            }
+        }
+
+
+        // --- Strategy 2: Check the combined string for fully-formed words ---
+        // This finds words like "confidential" that span blocks
+        String cleanCombined = decryptedText.replaceAll("[^a-z]", "");
+        for (String word : this.dictionary) {
+            // REMOVED "word.length() >= 4 &&" from the line below
+            if (cleanCombined.contains(word)) {
+                if (foundWordsSet.add(word)) { // .add() returns true if the word was new
+                    totalScore += word.length();
+                }
+            }
+        }
+
+        if (foundWordsSet.isEmpty()) {
+            return "==> Word Score: 0. No common English words (4+ letters) found.";
+        }
+
+        // Convert Set to List for sorting
+        List<String> foundWords = new ArrayList<>(foundWordsSet);
+        // sort found words by length, longest first
+        foundWords.sort((s1, s2) -> s2.length() - s1.length());
+        
+        List<String> displayWords = foundWords;
+        String displayMessage = "Found " + foundWords.size() + " words: ";
+
+        // This is the new logic to show top 10 or all
+        if (foundWords.size() > 10 && !showAll) {
+            displayWords = foundWords.subList(0, 10);
+            displayMessage = "Found " + foundWords.size() + " words (top 10): ";
+        }
+        
+        return "==> Word Score: " + totalScore + ". " + displayMessage + displayWords;
+    }
+
+
+    // =========================================================================
     // === All methods from here down are your excellent analysis functions ===
     // =========================================================================
 
@@ -314,13 +445,13 @@ public class CryptoAnalyzer {
 
     private static <K, V extends Comparable<? super V>> Map<K, V> sortMapByValue(Map<K, V> map) {
         return map.entrySet()
-                  .stream()
-                  .sorted(Map.Entry.<K, V>comparingByValue().reversed())
-                  .collect(Collectors.toMap(
-                      Map.Entry::getKey,
-                      Map.Entry::getValue,
-                      (e1, e2) -> e1,
-                      LinkedHashMap::new
-                  ));
+                   .stream()
+                   .sorted(Map.Entry.<K, V>comparingByValue().reversed())
+                   .collect(Collectors.toMap(
+                       Map.Entry::getKey,
+                       Map.Entry::getValue,
+                       (e1, e2) -> e1,
+                       LinkedHashMap::new
+                   ));
     }
 }

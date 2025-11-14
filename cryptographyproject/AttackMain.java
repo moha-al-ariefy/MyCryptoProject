@@ -18,6 +18,7 @@ public class AttackMain {
         String filename = userInputReader.nextLine();
         
         // we will use our analyzer 'brain' to read and clean the file
+        // when we create this, it will *also* try to load "dictionary.txt"
         CryptoAnalyzer analyzer = new CryptoAnalyzer(filename);
         
         if (!analyzer.isFileLoaded()) {
@@ -28,6 +29,14 @@ public class AttackMain {
 
         System.out.println("Successfully read " + analyzer.getRawText().length() + " raw characters.");
         System.out.println("Text cleaned. Cleaned text length: " + analyzer.getCleanText().length());
+        
+        // This message comes from the analyzer's constructor
+        if (analyzer.isDictionaryLoaded()) {
+            System.out.println("Dictionary loaded with " + analyzer.getDictionarySize() + " words.");
+        } else {
+            System.out.println("!! Warning: dictionary.txt not found. Word validation will be skipped.");
+        }
+
 
         // === Step 1: Run and Display Initial Analyses ===
         
@@ -64,7 +73,7 @@ public class AttackMain {
         System.out.println("This is the weak point. We will now attack this part.");
 
         
-        // === Step 2: Begin Interactive Cracking Loop (New for Phase 2) ===
+        // === Step 2: Begin Interactive Cracking Loop ===
         System.out.println("\n--- Starting Interactive S6 Cracker ---");
 
         // this is our main loop. it will keep running until the user quits.
@@ -85,6 +94,7 @@ public class AttackMain {
             System.out.println("  (g)uess    -> (e.g., 'g h e' means 'guess Cipher H is Plain E')");
             System.out.println("  (u)ndo     -> (e.g., 'u h' means 'undo guess for Cipher H')");
             System.out.println("  (r)eshow   -> (reshow the S6 frequency graph)");
+            System.out.println("  (v)alidate -> (check partial text, 'v all' to show all)"); // <-- UPDATED
             System.out.println("  (a)ttempt  -> (run full decryption with current guesses)");
             System.out.println("  (q)uit     -> (exit the program)");
             System.out.print("Your command: ");
@@ -128,14 +138,35 @@ public class AttackMain {
                         26 // show all 26
                     );
                     break;
+
+                case 'v': // Validate (UPDATED)
+                    System.out.println("\n--- Validating Partial S6 Text ---");
+                    
+                    // Check if the user typed "v all"
+                    boolean showAll = false;
+                    if (parts.length == 2 && parts[1].equals("all")) {
+                        showAll = true;
+                    }
+
+                    String s6Text = analyzer.getDecryptedTextWithContext();
+                    // Call the new overloaded method
+                    String s6Validation = analyzer.validateText(s6Text, showAll); 
+                    System.out.println(s6Validation);
+                    break;
                 
-                case 'a': // Attempt full decryption
+                case 'a': // Attempt full decryption (UPDATED FOR PHASE 3)
                     System.out.println("\n--- ATTEMPTING FULL DECRYPTION WITH CURRENT GUESSES ---");
                     // this is the big one.
                     // it decrypts S6, then finds the caesar key, then decrypts C3.
                     String fullAttempt = analyzer.getFullyDecryptedText();
                     System.out.println(fullAttempt);
-                    System.out.println("--- END OF ATTEMPT ---");
+                    
+                    // --- NEW FOR PHASE 3 ---
+                    System.out.println("\n--- Dictionary Validation ---");
+                    // This will call the default validateText(text, false) to show top 10
+                    String validationResult = analyzer.validateText(fullAttempt);
+                    System.out.println(validationResult);
+                    // --- END OF ATTEMPT ---
                     break;
 
                 case 'q': // Quit
@@ -144,7 +175,7 @@ public class AttackMain {
                     return; // this exits the main method and stops the program.
 
                 default:
-                    System.out.println("!! ERROR: Unknown command. Try 'g', 'u', 'r', 'a', or 'q'.");
+                    System.out.println("!! ERROR: Unknown command. Try 'g', 'u', 'r', 'v', 'a', or 'q'.");
                     break;
             }
         }
